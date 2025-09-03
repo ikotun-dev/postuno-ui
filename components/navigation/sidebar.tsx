@@ -1,4 +1,7 @@
+"use client"
+import { usePathname } from "next/navigation"
 import { AppSidebar } from "@/components/app-sidebar"
+import { ThemeToggle } from "@/components/theme-toggle"
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -15,8 +18,12 @@ import {
 } from "@/components/ui/sidebar"
 
 export default function Sidebar({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname()
+    const isTemplatesPage = pathname === "/dashboard/templates"
+    
     return (
         <SidebarProvider
+            defaultOpen={!isTemplatesPage}
             style={
                 {
                     "--sidebar-width": "19rem",
@@ -41,6 +48,9 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                             <BreadcrumbSeparator className="hidden md:block" />
                         </BreadcrumbList>
                     </Breadcrumb>
+                    <div className="ml-auto">
+                        <ThemeToggle />
+                    </div>
                 </header>
 
                 {children}
