@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/theme-context";
 import { ChatBubble } from "@/components/chat-bubble";
 import { Bot } from "lucide-react";
+import { EnhancedChatBubble } from "@/components/enhanced-chat-bubble";
 
 export default function Page() {
     const { theme } = useTheme();
@@ -39,47 +40,19 @@ export default function Page() {
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    const handleSendQuery = async (query: string) => {
-        // TODO: Implement API call to backend
-        console.log('Sending query to backend:', query);
+    const handleTemplateGenerated = (generatedTemplate: string) => {
+        console.log('Template generated:', generatedTemplate);
+        
+        // Set the generated template as the current code
+        setCode(generatedTemplate);
+        
+        // Close the chat bubble after template is generated
+        setIsChatOpen(false);
+    };
 
-        // Placeholder for API integration
-        try {
-            // const response = await fetch('/api/generate-template', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
-            //     body: JSON.stringify({ query })
-            // });
-            // const generatedCode = await response.text();
-            // setCode(generatedCode);
-
-            // For now, just show a sample response
-            const sampleTemplate = `<!DOCTYPE html>
-<html>
-<head>
-    <title>Generated Email Template</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; }
-        .header { background: #007bff; color: white; padding: 20px; text-align: center; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Welcome!</h1>
-        </div>
-        <div style="padding: 20px;">
-            <p>Generated based on: "${query}"</p>
-            <p>This is a sample template. Connect your backend to generate real templates.</p>
-        </div>
-    </div>
-</body>
-</html>`;
-            setCode(sampleTemplate);
-        } catch (error) {
-            console.error('Error generating template:', error);
-        }
+    const handleTemplateStreaming = (partialTemplate: string) => {
+        // Update the editor in real-time as the template is being generated
+        setCode(partialTemplate);
     };
 
     return (
@@ -156,10 +129,11 @@ export default function Page() {
             </div>
 
             {/* Chat Bubble */}
-            <ChatBubble
+            <EnhancedChatBubble
                 isOpen={isChatOpen}
                 onClose={() => setIsChatOpen(false)}
-                onSend={handleSendQuery}
+                onTemplateGenerated={handleTemplateGenerated}
+                onTemplateStreaming={handleTemplateStreaming}
             />
         </div>
     )
