@@ -1,5 +1,5 @@
 import * as React from "react"
-import { GalleryVerticalEnd } from "lucide-react"
+import { GalleryVerticalEnd, Paperclip } from "lucide-react"
 
 import {
   Sidebar,
@@ -20,8 +20,18 @@ const data = {
     {
       title: "Templates",
       url: "/dashboard/templates",
-      items: []
+      items: [],
+      icon: Paperclip
     },
+    {
+      title: "Domains",
+      url: "/dashboard/domains",
+      items: [
+        {
+          title : ""
+        }
+      ]
+    }
 
     // {
     //   title: "Domains",
@@ -88,6 +98,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             {data.navMain.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
+                  <item.icon />
                   <a href={item.url} className="font-medium">
                     {item.title}
                   </a>

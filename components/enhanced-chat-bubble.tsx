@@ -13,20 +13,22 @@ interface EnhancedChatBubbleProps {
   onTemplateStreaming?: (partialTemplate: string) => void
 }
 
-export function EnhancedChatBubble({ 
-  isOpen, 
-  onClose, 
+export function EnhancedChatBubble({
+  isOpen,
+  onClose,
   onTemplateGenerated,
-  onTemplateStreaming 
+  onTemplateStreaming
 }: EnhancedChatBubbleProps) {
   const [query, setQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [currentResponse, setCurrentResponse] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
-  
+
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const completionHandledRef = useRef(false)
+  const currentResponseRef = useRef("")
   const { sendStreamingMessage, healthCheck } = useChatAPI()
 
   useEffect(() => {
@@ -39,6 +41,97 @@ export function EnhancedChatBubble({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages, currentResponse])
 
+  // const handleSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault()
+  //   if (!query.trim() || isLoading) return
+
+  //   const userMessage: ChatMessage = { role: 'user', content: query.trim() }
+  //   setMessages(prev => [...prev, userMessage])
+  //   setQuery("")
+  //   setIsLoading(true)
+  //   setIsStreaming(true)
+  //   setCurrentResponse("")
+  //   completionHandledRef.current = false
+
+
+
+  //   const conversationMessages = [...messages, userMessage]
+
+  //   try {
+  //     await sendStreamingMessage(
+  //       query.trim(),
+  //       // onChunk
+  //       (chunk: StreamingChatResponse) => {
+  //         if (chunk.choices && chunk.choices.length > 0) {
+  //           const delta = chunk.choices[0].delta
+  //           if (delta.content) {
+  //             setCurrentResponse(prev => {
+  //               const newContent = prev + delta.content
+
+  //               // Stream to editor if it looks like HTML/template code
+  //               if (onTemplateStreaming && (newContent.includes('<!DOCTYPE html>') || newContent.includes('<html>'))) {
+  //                 onTemplateStreaming(newContent)
+  //               }
+
+  //               // Show streaming content in chat
+  //               return newContent
+  //             })
+  //           }
+  //         }
+  //       },
+  //       // onError
+  //       (error: string) => {
+  //         console.error("Streaming error:", error)
+  //         setMessages(prev => [...prev, {
+  //           role: 'assistant',
+  //           content: `Error: ${error}`
+  //         }])
+  //         setIsStreaming(false)
+  //         setIsLoading(false)
+  //       },
+
+  //       // onComplete
+  //       () => {
+  //         if (completionHandledRef.current) return // Prevent duplicate handling
+  //         completionHandledRef.current = true
+
+  //         setCurrentResponse(prev => {
+  //           const fullTemplate = prev
+
+  //           if (fullTemplate) {
+  //             setMessages(prevMessages => [...prevMessages, {
+  //               role: 'assistant' as const,
+  //               content: fullTemplate
+  //             }])
+
+
+  //             if (onTemplateGenerated && fullTemplate.includes('<!DOCTYPE html>')) {
+  //               onTemplateGenerated(fullTemplate)
+  //             }
+  //           }
+
+  //           return ""
+  //         })
+
+  //         setIsStreaming(false)
+  //         setIsLoading(false)
+  //       }
+
+  //     )
+  //   } catch (error) {
+  //     console.error("Error sending message:", error)
+  //     setMessages(prev => [...prev, {
+  //       role: 'assistant',
+  //       content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+  //     }])
+  //     setIsStreaming(false)
+  //     setIsLoading(false)
+  //   }
+  // }
+
+
+  // ... existing code ...
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!query.trim() || isLoading) return
@@ -49,26 +142,28 @@ export function EnhancedChatBubble({
     setIsLoading(true)
     setIsStreaming(true)
     setCurrentResponse("")
+    currentResponseRef.current = ""
+    completionHandledRef.current = false
 
     const conversationMessages = [...messages, userMessage]
 
     try {
       await sendStreamingMessage(
         query.trim(),
-        // onChunk
+        // onChunk - only update currentResponse, don't add to messages
         (chunk: StreamingChatResponse) => {
           if (chunk.choices && chunk.choices.length > 0) {
             const delta = chunk.choices[0].delta
             if (delta.content) {
               setCurrentResponse(prev => {
                 const newContent = prev + delta.content
-                
+                currentResponseRef.current = newContent
+
                 // Stream to editor if it looks like HTML/template code
                 if (onTemplateStreaming && (newContent.includes('<!DOCTYPE html>') || newContent.includes('<html>'))) {
                   onTemplateStreaming(newContent)
                 }
-                
-                // Show streaming content in chat
+
                 return newContent
               })
             }
@@ -84,28 +179,31 @@ export function EnhancedChatBubble({
           setIsStreaming(false)
           setIsLoading(false)
         },
-        // onComplete
+        // onComplete - only add the final response to messages here
         () => {
-          // Capture the current response before clearing it
-          setCurrentResponse(prev => {
-            const fullTemplate = prev
-            
-            // Always add the full response to chat history for conversation continuity
-            setMessages(messages => [...messages, {
-              role: 'assistant',
-              content: fullTemplate
-            }])
-            
-            // If this looks like a template, call the callback with the full template
-            if (onTemplateGenerated && fullTemplate.includes('<!DOCTYPE html>')) {
-              onTemplateGenerated(fullTemplate)
-            }
-            
-            return "" // Clear the current response
-          })
-          
+          if (completionHandledRef.current) return
+          completionHandledRef.current = true
+
+          // Use the ref to get the actual final response
+          const finalResponse = currentResponseRef.current
+
+          // Clear everything immediately
+          setCurrentResponse("")
+          currentResponseRef.current = ""
           setIsStreaming(false)
           setIsLoading(false)
+
+          // Add the final message to the messages array
+          if (finalResponse) {
+            setMessages(prevMessages => [...prevMessages, {
+              role: 'assistant' as const,
+              content: finalResponse
+            }])
+
+            if (onTemplateGenerated && finalResponse.includes('<!DOCTYPE html>')) {
+              onTemplateGenerated(finalResponse)
+            }
+          }
         }
       )
     } catch (error) {
@@ -116,6 +214,15 @@ export function EnhancedChatBubble({
       }])
       setIsStreaming(false)
       setIsLoading(false)
+    }
+  }
+
+  // ... rest of the code ...
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch (err) {
+      console.error('Failed to copy text: ', err)
     }
   }
 
@@ -190,28 +297,38 @@ export function EnhancedChatBubble({
               </div>
             )}
 
+
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`flex gap-3 ${
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
+                className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'
+                  }`}
               >
                 {message.role === 'assistant' && (
                   <div className="w-8 h-8 bg-black dark:bg-white rounded-full flex items-center justify-center flex-shrink-0">
                     <Bot className="h-4 w-4 text-white dark:text-black" />
                   </div>
                 )}
-                <div
-                  className={`max-w-[70%] p-3 rounded-2xl ${
-                    message.role === 'user'
+                <div className="relative group max-w-[70%]">
+                  <div
+                    className={`p-3 rounded-2xl ${message.role === 'user'
                       ? 'bg-black dark:bg-white text-white dark:text-black'
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                  }`}
-                >
-                  <pre className="whitespace-pre-wrap font-sans text-sm">
-                    {message.content}
-                  </pre>
+                      }`}
+                  >
+                    <pre className="whitespace-pre-wrap font-sans text-sm">
+                      {message.content}
+                    </pre>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(message.content)}
+                    className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 h-6 w-6 p-0 text-xs hover:bg-gray-50 dark:hover:bg-gray-700"
+                    title="Copy message"
+                  >
+                    📋
+                  </Button>
                 </div>
                 {message.role === 'user' && (
                   <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
@@ -221,20 +338,32 @@ export function EnhancedChatBubble({
               </div>
             ))}
 
+
             {/* Streaming Response */}
             {isStreaming && currentResponse && (
               <div className="flex gap-3 justify-start">
                 <div className="w-8 h-8 bg-black dark:bg-white rounded-full flex items-center justify-center flex-shrink-0">
                   <Bot className="h-4 w-4 text-white dark:text-black" />
                 </div>
-                <div className="max-w-[70%] p-3 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                  <pre className="whitespace-pre-wrap font-sans text-sm">
-                    {currentResponse}
-                  </pre>
-                  <div className="flex items-center gap-1 mt-2">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span className="text-xs text-gray-500">Generating...</span>
+                <div className="relative group max-w-[70%]">
+                  <div className="p-3 rounded-2xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                    <pre className="whitespace-pre-wrap font-sans text-sm">
+                      {currentResponse}
+                    </pre>
+                    <div className="flex items-center gap-1 mt-2">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span className="text-xs text-gray-500">Generating...</span>
+                    </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(currentResponse)}
+                    className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 h-6 w-6 p-0 text-xs hover:bg-gray-50 dark:hover:bg-gray-700"
+                    title="Copy message"
+                  >
+                    📋
+                  </Button>
                 </div>
               </div>
             )}
@@ -268,11 +397,11 @@ export function EnhancedChatBubble({
                   )}
                 </Button>
               </div>
-              
+
               {/* Footer */}
               <div className="flex items-center justify-between mt-3 text-xs text-gray-600 dark:text-gray-300">
                 <span>Press Enter to send, Shift+Enter for new line</span>
-                <span>Powered by OpenAI</span>
+                <span>Powered by IssueIQ</span>
               </div>
             </form>
           </div>
